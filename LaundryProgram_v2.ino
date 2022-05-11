@@ -268,6 +268,10 @@ void loop() {
           Serial.println("Success Update machine_status:false on Server");
         #endif
         if(Transaction_ID == ""){
+          #ifdef DEBUG
+            Serial.println("Transaction_ID = null");
+          #endif
+          
           if(packet) PACKET = "true";
           else PACKET = "false";
           URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
@@ -275,9 +279,12 @@ void loop() {
           SERVER_getJsonResponse(URL_Server, "_id");
         }
         else{
+          #ifdef DEBUG
+            Serial.println("Transaction_ID available");
+          #endif
+          
           URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
           if(killTransaction){
-//            URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
             DB_Message = "{\"step_one\":true,\"transaction_finish\":true}";
             if(SERVER_Update(URL_Server, DB_Message)){
               menit = 0;
@@ -291,7 +298,6 @@ void loop() {
             if(packet){
               // For washer only, switch transaction from washer to dryer
               if((MACHINE_ID == "1") || (MACHINE_ID == "3") || (MACHINE_ID == "5")){
-//                URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
                 DB_Message = "{\"step_one\":true}";
                 if(SERVER_Update(URL_Server, DB_Message)){
                   menit = 0;
@@ -302,7 +308,6 @@ void loop() {
               }
               // For dryer only, update transaction status from false to true
               else if((MACHINE_ID == "2") || (MACHINE_ID == "4") || (MACHINE_ID == "6")){
-//                URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
                 DB_Message = "{\"transaction_finish\":true}";
                 if(SERVER_Update(URL_Server, DB_Message)){
                   menit = 0;
@@ -313,7 +318,6 @@ void loop() {
               }
             }
             else {
-//              URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
               DB_Message = "{\"transaction_finish\":true}";
               if(SERVER_Update(URL_Server, DB_Message)){
                 menit = 0;
