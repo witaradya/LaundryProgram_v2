@@ -1,37 +1,9 @@
 /*
-    ================ WASHER number 1 ================
-
-    Machine Type   = 0(WASHER), 1(DRYER)
-    Machine Number = 1-6 (6 WASHER & 6 DRYER)
-    Machine Status = true(ON), false(OFF)
-    Machine Grade  = true(Titan), false(Giant)
-    Machine Price  = Rp ....
-    Machine ID     = Unique Number (1 - 12), different machine different ID
-    ID             = Auto generate from system
-
-    THIS MACHINE = {
-    "machine_type"   : 0,
-    "machine_number" : 1,
-    "machine_status" : false,
-    "machine_grade"  : false,
-    "machine_price"  : "1000"
-    "machine_id"     : 1,
-    "id"             : 1 }
-
-*/
-
-
-//#define DEBUG
-
-/*
- * Choose one to activate 1 device that will you use
+ * 11 MEI 2022
+ * Witaradya Adhi Dharma
  */
-//#define WASHER_1       //NoMesin = 1
-//#define WASHER_3     //NoMesin = 3
-#define WASHER_5     //NoMesin = 5
-//#define DRYER_2      //NoMesin = 2
-//#define DRYER_4      //NoMesin = 4
-//#define DRYER_6      //NoMesin = 6
+
+#define DEBUG
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -42,41 +14,26 @@
 #include <ArduinoJson.h>
 #include "EEPROM.h"
 
-#ifdef WASHER_1
-  #define URL_UPDATE "http://192.168.1.30:8000/update?sl_id=1"
-  #define URL_GET "http://192.168.1.30:8000/machine-id?sl_id=1"
-  #define TON_MACHINE   33 //minutes
-#endif
+/*
+ * Choose one to activate 1 device that will you use
+ */
+#define MACHINE_ID          "1" // WASHER TITAN no.1
+//#define MACHINE_ID          "2" // DRYER TITAN no.2
+//#define MACHINE_ID          "3" // WASHER no.3
+//#define MACHINE_ID          "4" // DRYER no.4
+//#define MACHINE_ID          "5" // WASHER no.5
+//#define MACHINE_ID          "6" // DRYER no.6
 
-#ifdef WASHER_3
-  #define URL_UPDATE "http://192.168.1.30:8000/update?sl_id=2"
-  #define URL_GET "http://192.168.1.30:8000/machine-id?sl_id=2"
-  #define TON_MACHINE   33 //minutes
-#endif
+#define STORE "1"   //Klaseman Laundry
+//#define STORE "2"   //Solo Laundry
 
-#ifdef WASHER_5
-  #define URL_UPDATE "http://192.168.1.30:8000/update?sl_id=3"
-  #define URL_GET "http://192.168.1.30:8000/machine-id?sl_id=3"
-  #define TON_MACHINE   33 //minutes
-#endif
+#define URL                 "https://api.kontenbase.com/query/api/v1/b7fadcc8-3706-465a-90cb-39880d75338f/"
 
-#ifdef DRYER_2
-  #define URL_UPDATE "http://192.168.1.30:8000/update?sl_id=4"
-  #define URL_GET "http://192.168.1.30:8000/machine-id?sl_id=4"
-  #define TON_MACHINE   45 //minutes
-#endif
-
-#ifdef DRYER_4
-  #define URL_UPDATE "http://192.168.1.30:8000/update?sl_id=5"
-  #define URL_GET "http://192.168.1.30:8000/machine-id?sl_id=5"
-  #define TON_MACHINE   45 //minutes
-#endif
-
-#ifdef DRYER_6
-  #define URL_UPDATE "http://192.168.1.30:8000/update?sl_id=6"
-  #define URL_GET "http://192.168.1.30:8000/machine-id?sl_id=6"
-  #define TON_MACHINE   45 //minutes
-#endif
+#define GET_MACHINE         "Machine/"
+#define GET_ID              "Transaction?transaction_finish=false&is_packet="
+#define GET_ID_2            "&transaction_id_machine="
+#define GET_ID_3            "&transaction_store="
+#define UPDATE_TRANSACTION  "Transaction/"
 
 #define LED_WIFI      19
 #define RESET_BTN     34
@@ -84,24 +41,33 @@
 
 #define STS_ADDR    0
 #define MINUTE_ADDR 1
-#define SECOND_ADDR 2
 
 HTTPClient http;
 
 TaskHandle_t Task1;
 
-const char* ssid = "laundryIOT";
-const char* password = "expresss";
+const char* ssid = "Timtom";
+const char* password = "tingtong9#";
 
 // TIMER
 unsigned long prevTime, currentTime;
 byte detik, menit, machineSts;
+uint8_t TON_MACHINE = 0;
 
-//SERVER
+//SERVER MESIN
+String URL_Server;
+String DB_Message;
 int httpResponseCode;
 bool machineState = false, prevMachineState = false;
 bool setMachineON = false, machineOn = false;
 bool updateServer = false;
+
+//SERVER TRANSAKSI
+String Transaction_ID;
+String PACKET;
+bool packet = false;
+bool updateEEPROM = false;
+bool killTransaction = false;
 
 //RESET BUTTON
 bool paksaNyala = false;
@@ -120,33 +86,23 @@ unsigned long pressTime, rilisTime;
    @retval    : none
 */
 void EEPROM_Init() {
-  if (!EEPROM.begin(3)) {
+  if (!EEPROM.begin(2)) {
     Serial.println("Failed to init EEPROM");
   }
 
   machineSts = EEPROM.read(STS_ADDR);
-  menit = EEPROM.read(MINUTE_ADDR);
-  detik = EEPROM.read(SECOND_ADDR);
+  TON_MACHINE = EEPROM.read(MINUTE_ADDR);
 
-  Serial.print("EEPROM : "); Serial.print(machineSts);
-  Serial.print("\t"); Serial.print(menit); Serial.print("\t"); Serial.println(detik);
+  Serial.print("EEPROM_Init : "); Serial.print(machineSts);
+  Serial.print("\t"); Serial.println(menit);
 
   // If machineSts = 1, menit != 0, and detik != 0
   // It means, in the past, machine was on but suddenly power is off, so I will continue to turn on the machine.
   // But the machine is not tirggered anymore. So, setMachine is TRUE to continue the timer and
   // machineOn is FALSE to disable trigger function
-  if (machineSts == 1 && ((menit > 0) || (detik > 0))) {
+  if (machineSts == 1 && (menit > 0)) {
     setMachineON = true;
     machineOn = false;
-  }
-
-  // If machineSts = 1, menit = TON_MACHINE, and deetik >= 0
-  // This state is used to cover when timer is on point and micom cannot update to server
-  // then machine and controler turn off, even tough controler still update status
-  // So, this state will continue update status machine to off after machine and controler get supply
-  if ((machineSts == 1) && (menit == TON_MACHINE) && (detik >= 0)) {
-    updateServer = true;
-    setMachineON = false;
   }
 }
 
@@ -162,7 +118,9 @@ void EEPROM_Init() {
 */
 void MACHINE_on() {
   if (machineOn) {
-    Serial.println("Mesin Dinyalakan");
+    #ifdef DEBUG
+      Serial.println("MACHINE_on : Mesin Dinyalakan");
+    #endif
     for(uint8_t aa = 0; aa < 3; aa++){
       digitalWrite(PIN_MACHINE, HIGH);
       delay(50);
@@ -176,11 +134,8 @@ void MACHINE_on() {
 
 /*
    @brief   : Button By Pass Function
-
    @details : Used to handle when button byPass is pressed in 5 second or more
-
    @param   : none
-
    @retval  : none
 */
 void Button_ByPass() {
@@ -190,7 +145,10 @@ void Button_ByPass() {
     rilisTime = millis();
     if ((rilisTime - pressTime) > 5000) {
       paksaNyala = true;
-      Serial.println("DIPENCET !!!");
+      
+      #ifdef DEBUG
+        Serial.println("KillTransaction : DIPENCET !!!");
+      #endif
     }
   }
   lastState = currentState;
@@ -203,6 +161,7 @@ void setup() {
   digitalWrite(PIN_MACHINE, LOW);
   delay(100);
 
+  pinMode(2, OUTPUT);
   pinMode(LED_WIFI, OUTPUT);
 
   pinMode(RESET_BTN, INPUT);
@@ -222,6 +181,10 @@ void setup() {
   delay(500);
 
   OTA_Init();
+
+  // Init TON_MACHINE based machine type
+  if((MACHINE_ID == "1") || (MACHINE_ID == "3") || (MACHINE_ID == "5"))TON_MACHINE = 2;
+  else TON_MACHINE = 2;
 }
 
 // Devide 2 task in 2 core
@@ -232,16 +195,10 @@ void Task1code( void * pvParameters ) {
     // Check button is pressed or not
     Button_ByPass();
 
-    /*// paksaNyala is flag that used to indicate the RESET_BTN button is being pressed or not
-    if (paksaNyala) {
-      machineOn = true;
-      MACHINE_on();
-      paksaNyala = false;
-    }*/
-
     if(paksaNyala){
       setMachineON = false;
       machineOn = false;
+      killTransaction = true;
 
       updateServer = true;
 
@@ -262,11 +219,6 @@ void Task1code( void * pvParameters ) {
           menit++;
           detik = 0;
         }
-        // Save MACHINE STATUS, MINUTE, SECOND to EEPROM
-        EEPROM.write(STS_ADDR, machineState);
-        EEPROM.write(MINUTE_ADDR, menit);
-        EEPROM.write(SECOND_ADDR, detik);
-        EEPROM.commit();
 
         // If the timer reach TON_MACHINE : Washer/Dryer is finished
         if (menit == TON_MACHINE) {
@@ -275,10 +227,7 @@ void Task1code( void * pvParameters ) {
         }
         #ifdef DEBUG
           Serial.print("Menit : ");
-          Serial.print(menit);
-          Serial.print("\t");
-          Serial.print("Detik : ");
-          Serial.println(detik);
+          Serial.println(menit);
         #endif
         prevTime = millis();
       }
@@ -297,29 +246,92 @@ void loop() {
       Serial.println("WIFI : Reconnecting");
     #endif
     digitalWrite(LED_WIFI, LOW);
+    digitalWrite(2, LOW);
     WIFI_Pairing();
   }
-  // If this module connected to WiFi, get update status machine from server and then trigger the machine if status machine change from 0 to 1
+  // If this module connected to WiFi, get update machine_status and is_packet from server
+  // and then trigger the machine if status machine change from 0 to 1
   else {
-    // Get update data machine from server
-    SERVER_getJsonResponse();
+    // Get update machine_status and is_packet from server
+    URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+    SERVER_getJsonResponse(URL_Server, "machine_status");
 
-    // Update status Washer/Dryer to server after Washer/Dryer is finished
-    if (updateServer) {
-      #ifdef DEBUG
-        Serial.println("Update Status Machine on Server");
-      #endif
-      if (SERVER_Update(0)) {
-        menit = 0;
-        detik = 0;
-        updateServer = false;
+    // next : GET time machine
+    
+    // Update status Washer/Dryer to server after Washer/Dryer finished
+    if (updateServer) {   
+      //Change machine_status to false if timer reach value
+      URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+      DB_Message = "{\"machine_status\":false}";
+      if (SERVER_Update(URL_Server, DB_Message)) {
+        #ifdef DEBUG
+          Serial.println("Success Update machine_status:false on Server");
+        #endif
+        if(Transaction_ID == ""){
+          if(packet) PACKET = "true";
+          else PACKET = "false";
+          URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
+          Serial.println(URL_Server);
+          SERVER_getJsonResponse(URL_Server, "_id");
+        }
+        else{
+          URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
+          if(killTransaction){
+//            URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
+            DB_Message = "{\"step_one\":true,\"transaction_finish\":true}";
+            if(SERVER_Update(URL_Server, DB_Message)){
+              menit = 0;
+              detik = 0;
+              updateServer = false;
+              updateEEPROM = true;
+              killTransaction = false;
+            }
+          }
+          else{
+            if(packet){
+              // For washer only, switch transaction from washer to dryer
+              if((MACHINE_ID == "1") || (MACHINE_ID == "3") || (MACHINE_ID == "5")){
+//                URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
+                DB_Message = "{\"step_one\":true}";
+                if(SERVER_Update(URL_Server, DB_Message)){
+                  menit = 0;
+                  detik = 0;
+                  updateServer = false;
+                  updateEEPROM = true;
+                }
+              }
+              // For dryer only, update transaction status from false to true
+              else if((MACHINE_ID == "2") || (MACHINE_ID == "4") || (MACHINE_ID == "6")){
+//                URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
+                DB_Message = "{\"transaction_finish\":true}";
+                if(SERVER_Update(URL_Server, DB_Message)){
+                  menit = 0;
+                  detik = 0;
+                  updateServer = false;
+                  updateEEPROM = true;
+                }
+              }
+            }
+            else {
+//              URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
+              DB_Message = "{\"transaction_finish\":true}";
+              if(SERVER_Update(URL_Server, DB_Message)){
+                menit = 0;
+                detik = 0;
+                updateServer = false;
+                updateEEPROM = true;
+              }
+            }
+          }
+        }
 
-        // Update data machine(Machine State = 0, Minute = 0, Second = 0) to EEPROM
-        SERVER_getJsonResponse();
-        EEPROM.write(STS_ADDR, machineState);
-        EEPROM.write(MINUTE_ADDR, 0);
-        EEPROM.write(SECOND_ADDR, 0);
-        EEPROM.commit();
+        if(updateEEPROM){
+          // Update data machine(Machine State = 0, Minute = 0) to EEPROM
+          EEPROM.write(STS_ADDR, 0);
+          EEPROM.write(MINUTE_ADDR, 0);
+          EEPROM.commit();
+          updateEEPROM = false;
+        }
       }
     }
   }

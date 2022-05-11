@@ -22,27 +22,54 @@ void SERVER_Get(String JSONMessage){
  * @retval    : none
  *  
  */
-void SERVER_getJsonResponse(){
-    http.begin(URL_GET); //Specify the URL
+void SERVER_getJsonResponse(String URLget, String param){
+    http.begin(URLget); //Specify the URL
     
     int httpCode = http.GET();
     if (httpCode > 0) {
-      //Serial.println("GET status mesin"); 
-      prevMachineState = machineState;
       DynamicJsonDocument doc(2048);
       deserializeJson(doc,http.getString());
-
-      machineState = doc["machine_status"];
-      #ifdef DEBUG
-        Serial.print("SERVER : Status Mesin = ");
-        Serial.println(machineState);
-      #endif
-      // If machineState = TRUE and !prevMachine = FALSE and Menit, detik equal to 0
-      if(machineState && !prevMachineState && ((menit == 0) && (detik == 0))) {
-        setMachineON = true;
-        machineOn = true;
+      
+      if(param == "machine_status"){
+        prevMachineState = machineState;
+        machineState = doc["machine_status"];
         #ifdef DEBUG
-          Serial.println("Nyalakan Mesin ...");
+          Serial.print("SERVER : Status Mesin = ");
+          Serial.println(machineState);
+        #endif
+        // If machineState = TRUE and !prevMachine = FALSE and Menit, detik equal to 0
+        if(machineState && !prevMachineState && ((menit == 0) && (detik == 0))) {
+          packet = doc["is_packet"];
+//          TON_MACHINE = doc["machine_time"];
+          
+          if(packet) PACKET = "true";
+          else PACKET = "false";
+          URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
+          Serial.println(URL_Server);
+          SERVER_getJsonResponse(URL_Server, "_id");
+                    
+          setMachineON = true;
+          machineOn = true;
+          
+          EEPROM.write(STS_ADDR, machineState);
+          EEPROM.write(MINUTE_ADDR, TON_MACHINE);
+          EEPROM.commit();
+          
+          #ifdef DEBUG
+            Serial.print("Nyalakan Mesin ...  ");
+            Serial.print("Paket : ");
+            Serial.println(packet);
+          #endif
+        }
+      }
+      else if(param == "_id"){
+        String id = doc[0][param];
+        
+        Transaction_ID = id;
+        
+        #ifdef DEBUG
+          Serial.print("Transaction_ID : ");
+          Serial.println(Transaction_ID);
         #endif
       }
         // String payload = http.getString();
@@ -69,31 +96,59 @@ void SERVER_getJsonResponse(){
  * @retval    : TRUE, if success update data to server
  *              FALSE, if failed update data to server
  */
-bool SERVER_Update(bool stsMachine){
-  http.begin(URL_UPDATE);
+//bool SERVER_Update(String urlGet, bool stsMachine){
+//  http.begin(URL_UPDATE);
+//
+//  http.addHeader("accept", "application/json");
+//  http.addHeader("Content-Type", "application/json");
+//  
+//  if(stsMachine) httpResponseCode = http.PUT("{\"machine_status\":\"true\"}");
+//  else httpResponseCode = http.PUT("{\"machine_status\":\"false\"}"); 
+//    
+//  if(httpResponseCode>0){
+//    String response = http.getString();  
+//    #ifdef DEBUG 
+//      Serial.println(httpResponseCode);
+//      Serial.println(response);          
+//    #endif
+//  }
+//  else{
+//    #ifdef DEBUG
+//      Serial.print("Error on sending PUT Request: ");
+//      Serial.println(httpResponseCode);
+//    #endif
+//  }
+//  
+//  http.end();
+//
+//  if(httpResponseCode > 0) return true;
+//  else return false;
+//}
+
+bool SERVER_Update(String UrlUpdate, String message){
+  http.begin(UrlUpdate);
 
   http.addHeader("accept", "application/json");
   http.addHeader("Content-Type", "application/json");
-  
-  if(stsMachine) httpResponseCode = http.PUT("{\"machine_status\":\"true\"}");
-  else httpResponseCode = http.PUT("{\"machine_status\":\"false\"}"); 
-    
-  if(httpResponseCode>0){
-    String response = http.getString();  
-    #ifdef DEBUG 
+
+  httpResponseCode = http.PATCH(message);
+
+  if(httpResponseCode > 0){
+    #ifdef DEBUG
+      String response = http.getString();   
       Serial.println(httpResponseCode);
       Serial.println(response);          
     #endif
+    http.end();
+    if(httpResponseCode == 404)return false;
+    else return true;
   }
   else{
     #ifdef DEBUG
       Serial.print("Error on sending PUT Request: ");
       Serial.println(httpResponseCode);
     #endif
+    http.end();
+    return false;
   }
-  
-  http.end();
-
-  if(httpResponseCode > 0) return true;
-  else return false;
 }
