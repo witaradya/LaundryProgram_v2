@@ -41,6 +41,8 @@
 
 #define STS_ADDR    0
 #define MINUTE_ADDR 1
+#define MICOM_STAGE 2
+#define PACKET_ADDR 3
 
 HTTPClient http;
 
@@ -76,6 +78,8 @@ uint8_t currentState;
 unsigned long pressTime, rilisTime;
 
 //EEPROM
+uint8_t ctrlStage = 0;  //0:Saat micom standby dan mesin done, 1:Saat mesin masih jalan, 
+                        //2:Saat mesin sudah selesai tapi sedang update data ke database
 /*
    @brief     : EEPROM Initialization Function
 
@@ -86,23 +90,35 @@ unsigned long pressTime, rilisTime;
    @retval    : none
 */
 void EEPROM_Init() {
-  if (!EEPROM.begin(2)) {
+  if (!EEPROM.begin(4)) {
     Serial.println("Failed to init EEPROM");
   }
-
+  
   machineSts = EEPROM.read(STS_ADDR);
   TON_MACHINE = EEPROM.read(MINUTE_ADDR);
-
+  ctrlStage = EEPROM.read(MICOM_STAGE);
+  packet = EEPROM.read(PACKET_ADDR);
+  
   Serial.print("EEPROM_Init : "); Serial.print(machineSts);
-  Serial.print("\t"); Serial.println(menit);
+  Serial.print("\t"); Serial.print(menit);
+  Serial.print("\t"); Serial.print(ctrlStage);
+  Serial.print("\t"); Serial.println(packet);
 
   // If machineSts = 1, menit != 0, and detik != 0
   // It means, in the past, machine was on but suddenly power is off, so I will continue to turn on the machine.
   // But the machine is not tirggered anymore. So, setMachine is TRUE to continue the timer and
   // machineOn is FALSE to disable trigger function
-  if (machineSts == 1 && (menit > 0)) {
-    setMachineON = true;
-    machineOn = false;
+  if (machineSts == 1) {
+    if(ctrlStage == 1){
+      Transaction_ID = "null";
+      setMachineON = true;
+      machineOn = false;
+    }
+    else if(ctrlStage == 2){
+      Transaction_ID = "null";
+      updateServer = true;
+      setMachineON = false;
+    }
   }
 }
 
@@ -222,6 +238,9 @@ void Task1code( void * pvParameters ) {
 
         // If the timer reach TON_MACHINE : Washer/Dryer is finished
         if (menit == TON_MACHINE) {
+          EEPROM.write(MICOM_STAGE, 2);
+          EEPROM.commit();
+          
           updateServer = true;
           setMachineON = false;
         }
@@ -267,7 +286,8 @@ void loop() {
         #ifdef DEBUG
           Serial.println("Success Update machine_status:false on Server");
         #endif
-        if(Transaction_ID == ""){
+        
+        if(Transaction_ID == "null"){
           #ifdef DEBUG
             Serial.println("Transaction_ID = null");
           #endif
@@ -275,7 +295,6 @@ void loop() {
           if(packet) PACKET = "true";
           else PACKET = "false";
           URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
-          Serial.println(URL_Server);
           SERVER_getJsonResponse(URL_Server, "_id");
         }
         else{
@@ -333,6 +352,8 @@ void loop() {
           // Update data machine(Machine State = 0, Minute = 0) to EEPROM
           EEPROM.write(STS_ADDR, 0);
           EEPROM.write(MINUTE_ADDR, 0);
+          EEPROM.write(MICOM_STAGE, 0);
+          EEPROM.write(PACKET_ADDR, 0);
           EEPROM.commit();
           updateEEPROM = false;
         }

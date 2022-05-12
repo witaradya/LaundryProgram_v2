@@ -45,7 +45,6 @@ void SERVER_getJsonResponse(String URLget, String param){
           if(packet) PACKET = "true";
           else PACKET = "false";
           URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
-          Serial.println(URL_Server);
           SERVER_getJsonResponse(URL_Server, "_id");
                     
           setMachineON = true;
@@ -53,6 +52,8 @@ void SERVER_getJsonResponse(String URLget, String param){
           
           EEPROM.write(STS_ADDR, machineState);
           EEPROM.write(MINUTE_ADDR, TON_MACHINE);
+          EEPROM.write(MICOM_STAGE, 1);
+          EEPROM.write(PACKET_ADDR, packet);
           EEPROM.commit();
           
           #ifdef DEBUG
