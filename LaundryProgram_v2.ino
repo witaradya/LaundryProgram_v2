@@ -3,7 +3,7 @@
  * Witaradya Adhi Dharma
  */
 
-#define DEBUG
+//#define DEBUG
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -17,12 +17,12 @@
 /*
  * Choose one to activate 1 device that will you use
  */
-#define MACHINE_ID          "1" // WASHER TITAN no.1
+//#define MACHINE_ID          "1" // WASHER TITAN no.1
 //#define MACHINE_ID          "2" // DRYER TITAN no.2
 //#define MACHINE_ID          "3" // WASHER no.3
 //#define MACHINE_ID          "4" // DRYER no.4
 //#define MACHINE_ID          "5" // WASHER no.5
-//#define MACHINE_ID          "6" // DRYER no.6
+#define MACHINE_ID          "6" // DRYER no.6
 
 #define STORE "1"   //Klaseman Laundry
 //#define STORE "2"   //Solo Laundry
@@ -48,8 +48,8 @@ HTTPClient http;
 
 TaskHandle_t Task1;
 
-const char* ssid = "Timtom";
-const char* password = "tingtong9#";
+const char* ssid = "laundryIOT";
+const char* password = "expresss";
 
 // TIMER
 unsigned long prevTime, currentTime;
@@ -197,10 +197,6 @@ void setup() {
   delay(500);
 
   OTA_Init();
-
-  // Init TON_MACHINE based machine type
-  if((MACHINE_ID == "1") || (MACHINE_ID == "3") || (MACHINE_ID == "5"))TON_MACHINE = 2;
-  else TON_MACHINE = 2;
 }
 
 // Devide 2 task in 2 core
@@ -265,7 +261,7 @@ void loop() {
       Serial.println("WIFI : Reconnecting");
     #endif
     digitalWrite(LED_WIFI, LOW);
-    digitalWrite(2, LOW);
+    //digitalWrite(2, LOW);
     WIFI_Pairing();
   }
   // If this module connected to WiFi, get update machine_status and is_packet from server
@@ -274,8 +270,6 @@ void loop() {
     // Get update machine_status and is_packet from server
     URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
     SERVER_getJsonResponse(URL_Server, "machine_status");
-
-    // next : GET time machine
     
     // Update status Washer/Dryer to server after Washer/Dryer finished
     if (updateServer) {   

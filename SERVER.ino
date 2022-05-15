@@ -40,7 +40,7 @@ void SERVER_getJsonResponse(String URLget, String param){
         // If machineState = TRUE and !prevMachine = FALSE and Menit, detik equal to 0
         if(machineState && !prevMachineState && ((menit == 0) && (detik == 0))) {
           packet = doc["is_packet"];
-//          TON_MACHINE = doc["machine_time"];
+          TON_MACHINE = doc["price_time"];
           
           if(packet) PACKET = "true";
           else PACKET = "false";
@@ -59,7 +59,9 @@ void SERVER_getJsonResponse(String URLget, String param){
           #ifdef DEBUG
             Serial.print("Nyalakan Mesin ...  ");
             Serial.print("Paket : ");
-            Serial.println(packet);
+            Serial.print(packet);
+            Serial.print("\tTON : ");
+            Serial.println(TON_MACHINE);
           #endif
         }
       }
@@ -97,35 +99,6 @@ void SERVER_getJsonResponse(String URLget, String param){
  * @retval    : TRUE, if success update data to server
  *              FALSE, if failed update data to server
  */
-//bool SERVER_Update(String urlGet, bool stsMachine){
-//  http.begin(URL_UPDATE);
-//
-//  http.addHeader("accept", "application/json");
-//  http.addHeader("Content-Type", "application/json");
-//  
-//  if(stsMachine) httpResponseCode = http.PUT("{\"machine_status\":\"true\"}");
-//  else httpResponseCode = http.PUT("{\"machine_status\":\"false\"}"); 
-//    
-//  if(httpResponseCode>0){
-//    String response = http.getString();  
-//    #ifdef DEBUG 
-//      Serial.println(httpResponseCode);
-//      Serial.println(response);          
-//    #endif
-//  }
-//  else{
-//    #ifdef DEBUG
-//      Serial.print("Error on sending PUT Request: ");
-//      Serial.println(httpResponseCode);
-//    #endif
-//  }
-//  
-//  http.end();
-//
-//  if(httpResponseCode > 0) return true;
-//  else return false;
-//}
-
 bool SERVER_Update(String UrlUpdate, String message){
   http.begin(UrlUpdate);
 
@@ -137,7 +110,7 @@ bool SERVER_Update(String UrlUpdate, String message){
   if(httpResponseCode > 0){
     #ifdef DEBUG
       String response = http.getString();   
-      Serial.println(httpResponseCode);
+      Serial.print(httpResponseCode);
       Serial.println(response);          
     #endif
     http.end();
