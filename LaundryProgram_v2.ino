@@ -3,7 +3,7 @@
  * Witaradya Adhi Dharma
  */
 
-//#define DEBUG
+#define DEBUG
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -17,12 +17,12 @@
 /*
  * Choose one to activate 1 device that will you use
  */
-//#define MACHINE_ID          "1" // WASHER TITAN no.1
+#define MACHINE_ID          "1" // WASHER TITAN no.1
 //#define MACHINE_ID          "2" // DRYER TITAN no.2
 //#define MACHINE_ID          "3" // WASHER no.3
 //#define MACHINE_ID          "4" // DRYER no.4
 //#define MACHINE_ID          "5" // WASHER no.5
-#define MACHINE_ID          "6" // DRYER no.6
+//#define MACHINE_ID          "6" // DRYER no.6
 
 #define STORE "1"   //Klaseman Laundry
 //#define STORE "2"   //Solo Laundry
@@ -31,7 +31,7 @@
 
 #define GET_MACHINE         "Machine/"
 #define GET_ID              "Transaction?transaction_finish=false&is_packet="
-#define GET_ID_2            "&transaction_id_machine="
+#define GET_ID_2            "&transaction_number_machine="
 #define GET_ID_3            "&transaction_store="
 #define UPDATE_TRANSACTION  "Transaction/"
 
@@ -48,7 +48,7 @@ HTTPClient http;
 
 TaskHandle_t Task1;
 
-const char* ssid = "laundryIOT";
+const char* ssid = "LAUNDRY";
 const char* password = "expresss";
 
 // TIMER
@@ -76,6 +76,7 @@ bool paksaNyala = false;
 uint8_t lastState = HIGH;
 uint8_t currentState;
 unsigned long pressTime, rilisTime;
+bool IsTransaction = false;
 
 //EEPROM
 uint8_t ctrlStage = 0;  //0:Saat micom standby dan mesin done, 1:Saat mesin masih jalan, 
@@ -160,7 +161,8 @@ void Button_ByPass() {
   else if (lastState == LOW && currentState == HIGH) {
     rilisTime = millis();
     if ((rilisTime - pressTime) > 5000) {
-      paksaNyala = true;
+      if(IsTransaction) paksaNyala = true;
+      else paksaNyala = false;
       
       #ifdef DEBUG
         Serial.println("KillTransaction : DIPENCET !!!");
@@ -177,7 +179,7 @@ void setup() {
   digitalWrite(PIN_MACHINE, LOW);
   delay(100);
 
-  pinMode(2, OUTPUT);
+  //pinMode(2, OUTPUT);
   pinMode(LED_WIFI, OUTPUT);
 
   pinMode(RESET_BTN, INPUT);
@@ -261,7 +263,7 @@ void loop() {
       Serial.println("WIFI : Reconnecting");
     #endif
     digitalWrite(LED_WIFI, LOW);
-    //digitalWrite(2, LOW);
+//    digitalWrite(2, LOW);
     WIFI_Pairing();
   }
   // If this module connected to WiFi, get update machine_status and is_packet from server
@@ -311,30 +313,42 @@ void loop() {
             if(packet){
               // For washer only, switch transaction from washer to dryer
               if((MACHINE_ID == "1") || (MACHINE_ID == "3") || (MACHINE_ID == "5")){
+                #ifdef DEBUG
+                  Serial.println("Update WASH: STEP ONE TRUE");
+                #endif
                 DB_Message = "{\"step_one\":true}";
                 if(SERVER_Update(URL_Server, DB_Message)){
                   menit = 0;
                   detik = 0;
+                  IsTransaction = false;
                   updateServer = false;
                   updateEEPROM = true;
                 }
               }
               // For dryer only, update transaction status from false to true
               else if((MACHINE_ID == "2") || (MACHINE_ID == "4") || (MACHINE_ID == "6")){
+                #ifdef DEBUG
+                  Serial.println("Update DRYER : TRANSACTION FINISH TRUE");
+                #endif
                 DB_Message = "{\"transaction_finish\":true}";
                 if(SERVER_Update(URL_Server, DB_Message)){
                   menit = 0;
                   detik = 0;
+                  IsTransaction = false;
                   updateServer = false;
                   updateEEPROM = true;
                 }
               }
             }
             else {
+              #ifdef DEBUG
+                Serial.println("Update : TRANSACTION FINISH TRUE");
+              #endif
               DB_Message = "{\"transaction_finish\":true}";
               if(SERVER_Update(URL_Server, DB_Message)){
                 menit = 0;
                 detik = 0;
+                IsTransaction = false;
                 updateServer = false;
                 updateEEPROM = true;
               }
@@ -349,6 +363,7 @@ void loop() {
           EEPROM.write(MICOM_STAGE, 0);
           EEPROM.write(PACKET_ADDR, 0);
           EEPROM.commit();
+          IsTransaction = false;
           updateEEPROM = false;
         }
       }

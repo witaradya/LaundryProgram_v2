@@ -8,6 +8,6 @@ void WIFI_Pairing(){
     delay(5000);
     ESP.restart();
   }
-  //digitalWrite(2, HIGH);
+//  digitalWrite(2, HIGH);
   digitalWrite(LED_WIFI, HIGH);
 }

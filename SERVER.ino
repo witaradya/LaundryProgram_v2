@@ -46,7 +46,8 @@ void SERVER_getJsonResponse(String URLget, String param){
           else PACKET = "false";
           URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
           SERVER_getJsonResponse(URL_Server, "_id");
-                    
+
+          IsTransaction = true;          
           setMachineON = true;
           machineOn = true;
           
