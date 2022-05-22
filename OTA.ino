@@ -1,10 +1,10 @@
 void OTA_Init(){
-  if(MACHINE_ID == "1") ArduinoOTA.setHostname("KL_WASHER_1_TITAN");
-  else if(MACHINE_ID == "2")ArduinoOTA.setHostname("KL_DRYER_2_TITAN");
-  else if(MACHINE_ID == "3")ArduinoOTA.setHostname("KL_WASHER_3");
-  else if(MACHINE_ID == "4")ArduinoOTA.setHostname("KL_DRYER_4");
-  else if(MACHINE_ID == "5")ArduinoOTA.setHostname("KL_WASHER_5");
-  else if(MACHINE_ID == "6")ArduinoOTA.setHostname("KL_DRYER_6");
+  if(MACHINE_SIGN == "1") ArduinoOTA.setHostname("KL_WASHER_1_TITAN");
+  else if(MACHINE_SIGN == "2")ArduinoOTA.setHostname("KL_DRYER_2_TITAN");
+  else if(MACHINE_SIGN == "3")ArduinoOTA.setHostname("KL_WASHER_3");
+  else if(MACHINE_SIGN == "4")ArduinoOTA.setHostname("KL_DRYER_4");
+  else if(MACHINE_SIGN == "5")ArduinoOTA.setHostname("KL_WASHER_5");
+  else if(MACHINE_SIGN == "6")ArduinoOTA.setHostname("KL_DRYER_6");
 
   ArduinoOTA
     .onStart([]() {

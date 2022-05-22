@@ -3,7 +3,7 @@
  * Witaradya Adhi Dharma
  */
 
-//#define DEBUG
+#define DEBUG
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -16,18 +16,26 @@
 
 /*
  * Choose one to activate 1 device that will you use
+ * MACHINE_ID must equal with MACHINE_SIGN
  */
-//#define MACHINE_ID          "1" // WASHER TITAN no.1
-//#define MACHINE_ID          "2" // DRYER TITAN no.2
-//#define MACHINE_ID          "3" // WASHER no.3
-//#define MACHINE_ID          "4" // DRYER no.4
-#define MACHINE_ID          "5" // WASHER no.5
-//#define MACHINE_ID          "6" // DRYER no.6
+#define MACHINE_ID          "628251bef73447c1ba6ccfdd" //"1" // WASHER TITAN no.1
+//#define MACHINE_ID          "628251d0f73447c1ba6ccfde" //"2" // DRYER TITAN no.2
+//#define MACHINE_ID          "628251d4f73447c1ba6ccfdf" //"3" // WASHER no.3
+//#define MACHINE_ID          "628251d6f73447c1ba6ccfe0" //"4" // DRYER no.4
+//#define MACHINE_ID          "628251d8f73447c1ba6ccfe1" //"5" // WASHER no.5
+//#define MACHINE_ID          "628251daf73447c1ba6ccfe2" //"6" // DRYER no.6
+
+#define MACHINE_SIGN    "1" // WASHER TITAN no.1"
+//#define MACHINE_SIGN    "2" // DRYER TITAN no.2"
+//#define MACHINE_SIGN    "3" // WASHER no.3"
+//#define MACHINE_SIGN    "4" // DRYER  no.4"
+//#define MACHINE_SIGN    "5" // WASHER no.5"
+//#define MACHINE_SIGN    "6" // DRYER no.6"
 
 #define STORE "1"   //Klaseman Laundry
 //#define STORE "2"   //Solo Laundry
 
-#define URL                 "https://api.kontenbase.com/query/api/v1/b7fadcc8-3706-465a-90cb-39880d75338f/"
+#define URL                 "https://api.kontenbase.com/query/api/v1/a61eb959-29ce-4c54-b5ed-72c525faf455/"
 
 #define GET_MACHINE         "Machine/"
 #define GET_ID              "Transaction?transaction_finish=false&is_packet="
@@ -43,13 +51,14 @@
 #define MINUTE_ADDR 1
 #define MICOM_STAGE 2
 #define PACKET_ADDR 3
+#define BYPASS_ADDR 4
 
 HTTPClient http;
 
 TaskHandle_t Task1;
 
-const char* ssid = "laundryIOT";//"Timtom";
-const char* password = "expresss";//"tingtong9#";
+const char* ssid = "Timtom";
+const char* password = "tingtong9#";
 
 // TIMER
 unsigned long prevTime, currentTime;
@@ -82,6 +91,7 @@ bool IsTransaction = false;
 //EEPROM
 uint8_t ctrlStage = 0;  //0:Saat micom standby dan mesin done, 1:Saat mesin masih jalan, 
                         //2:Saat mesin sudah selesai tapi sedang update data ke database
+uint8_t mountByPass = 0; // total berapa kali 1 mesin di bypasss
 /*
    @brief     : EEPROM Initialization Function
 
@@ -92,19 +102,25 @@ uint8_t ctrlStage = 0;  //0:Saat micom standby dan mesin done, 1:Saat mesin masi
    @retval    : none
 */
 void EEPROM_Init() {
-  if (!EEPROM.begin(4)) {
+  if (!EEPROM.begin(5)) {
     Serial.println("Failed to init EEPROM");
   }
+
+  EEPROM.write(BYPASS_ADDR, 0);
+  EEPROM.commit();
   
   machineSts = EEPROM.read(STS_ADDR);
   TON_MACHINE = EEPROM.read(MINUTE_ADDR);
   ctrlStage = EEPROM.read(MICOM_STAGE);
   packet = EEPROM.read(PACKET_ADDR);
+  mountByPass = EEPROM.read(BYPASS_ADDR);
   
-  Serial.print("EEPROM_Init : "); Serial.print(machineSts);
-  Serial.print("\t"); Serial.print(menit);
-  Serial.print("\t"); Serial.print(ctrlStage);
-  Serial.print("\t"); Serial.println(packet);
+  Serial.println("EEPROM_Init : ");
+  Serial.print("Status Mesin : ");Serial.println(machineSts);
+  Serial.print("Menit : "); Serial.println(menit);
+  Serial.print("Control Stage : "); Serial.println(ctrlStage);
+  Serial.print("Is Packet : "); Serial.println(packet);
+  Serial.print("Mount By Pass : "); Serial.println(mountByPass);
 
   // If machineSts = 1, menit != 0, and detik != 0
   // It means, in the past, machine was on but suddenly power is off, so I will continue to turn on the machine.
@@ -161,22 +177,31 @@ void Button_ByPass() {
   if (lastState == HIGH && currentState == LOW)pressTime = millis();
   else if (lastState == LOW && currentState == HIGH) {
     rilisTime = millis();
-    if ((rilisTime - pressTime) > 5000) {
+    if (((rilisTime - pressTime) > 3000) && ((rilisTime - pressTime) < 5500)) {
       if(IsTransaction) paksaNyala = true;
       else {
+        //coba tambahkan untuk update status mesin ke 0
         paksaNyala = false;
         EEPROM.write(STS_ADDR, 0);
         EEPROM.write(MINUTE_ADDR, 0);
         EEPROM.write(MICOM_STAGE, 0);
         EEPROM.write(PACKET_ADDR, 0);
+        //EEPROM.write(BYPASS_ADDR, 0);
         EEPROM.commit();
         delay(5000);
         ESP.restart();
-      }
-      
+      }   
       #ifdef DEBUG
         Serial.println("KillTransaction : DIPENCET !!!");
       #endif
+    }
+    else if(((rilisTime - pressTime) > 9000) && ((rilisTime - pressTime) < 12000)) {
+      #ifdef DEBUG
+        Serial.println("KillTransaction : Paksa ON machine!!!");
+      #endif
+      mountByPass++;
+      machineOn = true;
+      MACHINE_on();
     }
   }
   lastState = currentState;
@@ -189,7 +214,7 @@ void setup() {
   digitalWrite(PIN_MACHINE, LOW);
   delay(100);
 
-//  pinMode(2, OUTPUT);
+  pinMode(2, OUTPUT);
   pinMode(LED_WIFI, OUTPUT);
 
   pinMode(RESET_BTN, INPUT);
@@ -279,12 +304,13 @@ void loop() {
   // If this module connected to WiFi, get update machine_status and is_packet from server
   // and then trigger the machine if status machine change from 0 to 1
   else {
-    // Get update machine_status and is_packet from server
-
-    if((millis() - timeServerUpdate) >= 3000){
-      URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
-      SERVER_getJsonResponse(URL_Server, "machine_status"); 
-      timeServerUpdate = millis();
+    // Get update machine_status and is_packet from server if isTransaction false(no transaction running)
+    if(!IsTransaction){
+      if((millis() - timeServerUpdate) >= 3000){
+        URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+        SERVER_getJsonResponse(URL_Server, "machine_status"); 
+        timeServerUpdate = millis();
+      }
     }
     
     // Update status Washer/Dryer to server after Washer/Dryer finished
@@ -326,7 +352,7 @@ void loop() {
           else{
             if(packet){
               // For washer only, switch transaction from washer to dryer
-              if((MACHINE_ID == "1") || (MACHINE_ID == "3") || (MACHINE_ID == "5")){
+              if((MACHINE_SIGN == "1") || (MACHINE_SIGN == "3") || (MACHINE_SIGN == "5")){
                 #ifdef DEBUG
                   Serial.println("Update WASH: STEP ONE TRUE");
                 #endif
@@ -340,7 +366,7 @@ void loop() {
                 }
               }
               // For dryer only, update transaction status from false to true
-              else if((MACHINE_ID == "2") || (MACHINE_ID == "4") || (MACHINE_ID == "6")){
+              else if((MACHINE_SIGN == "2") || (MACHINE_SIGN == "4") || (MACHINE_SIGN == "6")){
                 #ifdef DEBUG
                   Serial.println("Update DRYER : TRANSACTION FINISH TRUE");
                 #endif
