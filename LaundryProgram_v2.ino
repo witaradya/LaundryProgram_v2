@@ -3,7 +3,7 @@
  * Witaradya Adhi Dharma
  */
 
-#define DEBUG
+//#define DEBUG
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -17,11 +17,11 @@
 /*
  * Choose one to activate 1 device that will you use
  */
-#define MACHINE_ID          "1" // WASHER TITAN no.1
+//#define MACHINE_ID          "1" // WASHER TITAN no.1
 //#define MACHINE_ID          "2" // DRYER TITAN no.2
 //#define MACHINE_ID          "3" // WASHER no.3
 //#define MACHINE_ID          "4" // DRYER no.4
-//#define MACHINE_ID          "5" // WASHER no.5
+#define MACHINE_ID          "5" // WASHER no.5
 //#define MACHINE_ID          "6" // DRYER no.6
 
 #define STORE "1"   //Klaseman Laundry
@@ -48,11 +48,12 @@ HTTPClient http;
 
 TaskHandle_t Task1;
 
-const char* ssid = "LAUNDRY";
-const char* password = "expresss";
+const char* ssid = "laundryIOT";//"Timtom";
+const char* password = "expresss";//"tingtong9#";
 
 // TIMER
 unsigned long prevTime, currentTime;
+unsigned long timeServerUpdate;
 byte detik, menit, machineSts;
 uint8_t TON_MACHINE = 0;
 
@@ -162,7 +163,16 @@ void Button_ByPass() {
     rilisTime = millis();
     if ((rilisTime - pressTime) > 5000) {
       if(IsTransaction) paksaNyala = true;
-      else paksaNyala = false;
+      else {
+        paksaNyala = false;
+        EEPROM.write(STS_ADDR, 0);
+        EEPROM.write(MINUTE_ADDR, 0);
+        EEPROM.write(MICOM_STAGE, 0);
+        EEPROM.write(PACKET_ADDR, 0);
+        EEPROM.commit();
+        delay(5000);
+        ESP.restart();
+      }
       
       #ifdef DEBUG
         Serial.println("KillTransaction : DIPENCET !!!");
@@ -179,7 +189,7 @@ void setup() {
   digitalWrite(PIN_MACHINE, LOW);
   delay(100);
 
-  //pinMode(2, OUTPUT);
+//  pinMode(2, OUTPUT);
   pinMode(LED_WIFI, OUTPUT);
 
   pinMode(RESET_BTN, INPUT);
@@ -227,7 +237,7 @@ void Task1code( void * pvParameters ) {
       MACHINE_on();
 
       currentTime = millis();
-      if ((currentTime - prevTime) >= 1900) {
+      if ((currentTime - prevTime) >= 2000) {
         detik++;
         if (detik == 30) {
           menit++;
@@ -270,14 +280,18 @@ void loop() {
   // and then trigger the machine if status machine change from 0 to 1
   else {
     // Get update machine_status and is_packet from server
-    URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
-    SERVER_getJsonResponse(URL_Server, "machine_status");
+
+    if((millis() - timeServerUpdate) >= 3000){
+      URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+      SERVER_getJsonResponse(URL_Server, "machine_status"); 
+      timeServerUpdate = millis();
+    }
     
     // Update status Washer/Dryer to server after Washer/Dryer finished
     if (updateServer) {   
       //Change machine_status to false if timer reach value
       URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
-      DB_Message = "{\"machine_status\":false}";
+      DB_Message = "{\"machine_status\":false,\"price_time\":0}";
       if (SERVER_Update(URL_Server, DB_Message)) {
         #ifdef DEBUG
           Serial.println("Success Update machine_status:false on Server");
