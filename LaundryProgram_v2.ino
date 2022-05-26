@@ -18,12 +18,12 @@
  * Choose one to activate 1 device that will you use
  * MACHINE_ID must equal with MACHINE_SIGN
  */
-#define MACHINE_ID          "628251bef73447c1ba6ccfdd" //"1" // WASHER TITAN no.1
-//#define MACHINE_ID          "628251d0f73447c1ba6ccfde" //"2" // DRYER TITAN no.2
-//#define MACHINE_ID          "628251d4f73447c1ba6ccfdf" //"3" // WASHER no.3
-//#define MACHINE_ID          "628251d6f73447c1ba6ccfe0" //"4" // DRYER no.4
-//#define MACHINE_ID          "628251d8f73447c1ba6ccfe1" //"5" // WASHER no.5
-//#define MACHINE_ID          "628251daf73447c1ba6ccfe2" //"6" // DRYER no.6
+#define MACHINE_ID          "628f08431bd192bb4d866987" //"1" // WASHER TITAN no.1
+//#define MACHINE_ID          "628f084c1bd192bb4d866988" //"2" // DRYER TITAN no.2
+//#define MACHINE_ID          "628f08551bd192bb4d866989" //"3" // WASHER no.3
+//#define MACHINE_ID          "628f085f1bd192bb4d86698a" //"4" // DRYER no.4
+//#define MACHINE_ID          "628f08681bd192bb4d86698b" //"5" // WASHER no.5
+//#define MACHINE_ID          "628f08791bd192bb4d86698c" //"6" // DRYER no.6
 
 #define MACHINE_SIGN    "1" // WASHER TITAN no.1"
 //#define MACHINE_SIGN    "2" // DRYER TITAN no.2"
@@ -32,14 +32,14 @@
 //#define MACHINE_SIGN    "5" // WASHER no.5"
 //#define MACHINE_SIGN    "6" // DRYER no.6"
 
-#define STORE "1"   //Klaseman Laundry
+#define STORE "6267c113f0abea5167c243b3"   //Klaseman Laundry
 //#define STORE "2"   //Solo Laundry
 
-#define URL                 "https://api.kontenbase.com/query/api/v1/a61eb959-29ce-4c54-b5ed-72c525faf455/"
+#define URL                 "https://api.kontenbase.com/query/api/v1/79be38c0-31f9-4540-bd11-17752498dab5/"
 
 #define GET_MACHINE         "Machine/"
 #define GET_ID              "Transaction?transaction_finish=false&is_packet="
-#define GET_ID_2            "&transaction_number_machine="
+#define GET_ID_2            "&transaction_id_machine="
 #define GET_ID_3            "&transaction_store="
 #define UPDATE_TRANSACTION  "Transaction/"
 
@@ -57,8 +57,8 @@ HTTPClient http;
 
 TaskHandle_t Task1;
 
-const char* ssid = "Timtom";
-const char* password = "tingtong9#";
+const char* ssid = "laundryIOT";
+const char* password = "expresss";
 
 // TIMER
 unsigned long prevTime, currentTime;
@@ -117,10 +117,10 @@ void EEPROM_Init() {
   
   Serial.println("EEPROM_Init : ");
   Serial.print("Status Mesin : ");Serial.println(machineSts);
-  Serial.print("Menit : "); Serial.println(menit);
-  Serial.print("Control Stage : "); Serial.println(ctrlStage);
-  Serial.print("Is Packet : "); Serial.println(packet);
-  Serial.print("Mount By Pass : "); Serial.println(mountByPass);
+  Serial.print("Menit : ");Serial.println(menit);
+  Serial.print("Control Stage : ");Serial.println(ctrlStage);
+  Serial.print("Is Packet : ");Serial.println(packet);
+  Serial.print("Mount By Pass : ");Serial.println(mountByPass);
 
   // If machineSts = 1, menit != 0, and detik != 0
   // It means, in the past, machine was on but suddenly power is off, so I will continue to turn on the machine.
@@ -131,6 +131,7 @@ void EEPROM_Init() {
       Transaction_ID = "null";
       setMachineON = true;
       machineOn = false;
+      //IsTransaction = true;
     }
     else if(ctrlStage == 2){
       Transaction_ID = "null";
@@ -178,28 +179,42 @@ void Button_ByPass() {
   else if (lastState == LOW && currentState == HIGH) {
     rilisTime = millis();
     if (((rilisTime - pressTime) > 3000) && ((rilisTime - pressTime) < 5500)) {
-      if(IsTransaction) paksaNyala = true;
+      #ifdef DEBUG
+        Serial.println("KillTransaction : DIPENCET !!!");
+      #endif
+      
+      if(IsTransaction) {
+        #ifdef DEBUG
+          Serial.println("KillTransaction(3-5) : ada transaksi");
+        #endif
+        paksaNyala = true;
+      }
       else {
-        //coba tambahkan untuk update status mesin ke 0
+        #ifdef DEBUG
+          Serial.println("KillTransaction(3-5) : tidak ada transaksi");
+        #endif
+
+//        URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+//        DB_Message = "{\"machine_status\":false,\"price_time\":0}";
+//        SERVER_Update(URL_Server, DB_Message);
+        
         paksaNyala = false;
         EEPROM.write(STS_ADDR, 0);
         EEPROM.write(MINUTE_ADDR, 0);
         EEPROM.write(MICOM_STAGE, 0);
         EEPROM.write(PACKET_ADDR, 0);
-        //EEPROM.write(BYPASS_ADDR, 0);
         EEPROM.commit();
         delay(5000);
         ESP.restart();
       }   
-      #ifdef DEBUG
-        Serial.println("KillTransaction : DIPENCET !!!");
-      #endif
     }
-    else if(((rilisTime - pressTime) > 9000) && ((rilisTime - pressTime) < 12000)) {
+    if(((rilisTime - pressTime) > 9000) && ((rilisTime - pressTime) < 12000)) {
       #ifdef DEBUG
-        Serial.println("KillTransaction : Paksa ON machine!!!");
+        Serial.println("KillTransaction(9-12) : Paksa ON machine!!!");
       #endif
       mountByPass++;
+      EEPROM.write(BYPASS_ADDR, mountByPass);
+      EEPROM.commit();
       machineOn = true;
       MACHINE_on();
     }
@@ -214,7 +229,7 @@ void setup() {
   digitalWrite(PIN_MACHINE, LOW);
   delay(100);
 
-  pinMode(2, OUTPUT);
+  //pinMode(2, OUTPUT);
   pinMode(LED_WIFI, OUTPUT);
 
   pinMode(RESET_BTN, INPUT);
@@ -317,7 +332,7 @@ void loop() {
     if (updateServer) {   
       //Change machine_status to false if timer reach value
       URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
-      DB_Message = "{\"machine_status\":false,\"price_time\":0}";
+      DB_Message = "{\"machine_status\":false,\"price_time\":0,\"is_packet\":false}";
       if (SERVER_Update(URL_Server, DB_Message)) {
         #ifdef DEBUG
           Serial.println("Success Update machine_status:false on Server");
