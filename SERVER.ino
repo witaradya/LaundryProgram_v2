@@ -91,7 +91,12 @@ void SERVER_getJsonResponse(String URLget, String param){
         }
       }
       else if(param == "_id"){
-        String id = doc[0][param];
+        int index = doc.size();
+        #ifdef DEBUG
+          Serial.print("Size JSON : ");
+          Serial.println(index);
+        #endif
+        String id = doc[index - 1][param];
         
         Transaction_ID = id;
         
