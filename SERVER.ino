@@ -26,6 +26,7 @@ void SERVER_getJsonResponse(String URLget, String param){
     http.begin(URLget); //Specify the URL
     
     int httpCode = http.GET();
+    
     if (httpCode > 0) {
       DynamicJsonDocument doc(2048);
       deserializeJson(doc,http.getString());
@@ -35,36 +36,58 @@ void SERVER_getJsonResponse(String URLget, String param){
         machineState = doc["machine_status"];
         #ifdef DEBUG
           Serial.print("SERVER : Status Mesin = ");
-          Serial.println(machineState);
+          Serial.print(machineState);
+          Serial.print("\t");
+          Serial.println(httpCode);
         #endif
         // If machineState = TRUE and !prevMachine = FALSE and Menit, detik equal to 0
         if(machineState && !prevMachineState && ((menit == 0) && (detik == 0))) {
+          #ifdef DEBUG
+            Serial.println("DETEKSI 1");
+          #endif
           packet = doc["is_packet"];
           TON_MACHINE = doc["price_time"];
+          prevMachineState = 0;
+          machineState = 0;
           
-          if(packet) PACKET = "true";
-          else PACKET = "false";
-          URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
-          Serial.println(URL_Server);
-          SERVER_getJsonResponse(URL_Server, "_id");
-
-          IsTransaction = true;          
-          setMachineON = true;
-          machineOn = true;
-          
-          EEPROM.write(STS_ADDR, machineState);
-          EEPROM.write(MINUTE_ADDR, TON_MACHINE);
-          EEPROM.write(MICOM_STAGE, 1);
-          EEPROM.write(PACKET_ADDR, packet);
-          EEPROM.commit();
-          
-          #ifdef DEBUG
-            Serial.print("Nyalakan Mesin ...  ");
-            Serial.print("Paket : ");
-            Serial.print(packet);
-            Serial.print("\tTON : ");
-            Serial.println(TON_MACHINE);
-          #endif
+          if(TON_MACHINE){
+            #ifdef DEBUG
+              Serial.println("BENAR 1");
+            #endif
+            
+            machineState = 1;
+            
+//            digitalWrite(2, HIGH);
+            
+            if(packet) PACKET = "true";
+            else PACKET = "false";
+            URL_Server = (String)URL + (String)GET_ID + (String)PACKET + (String)GET_ID_2 + (String)MACHINE_ID + (String)GET_ID_3 + (String)STORE;
+            Serial.println(URL_Server);
+            SERVER_getJsonResponse(URL_Server, "_id");
+  
+            IsTransaction = true;          
+            setMachineON = true;
+            machineOn = true;
+            
+            EEPROM.write(STS_ADDR, machineState);
+            EEPROM.write(MINUTE_ADDR, TON_MACHINE);
+            EEPROM.write(MICOM_STAGE, 1);
+            EEPROM.write(PACKET_ADDR, packet);
+            EEPROM.commit();
+            
+            #ifdef DEBUG
+              Serial.print("Nyalakan Mesin ...  ");
+              Serial.print("Paket : ");
+              Serial.print(packet);
+              Serial.print("\tTON : ");
+              Serial.println(TON_MACHINE);
+            #endif
+  
+            // Update stage machine to 2 = Machine working
+            URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+            DB_Message = "{\"debug_machine\":2}";
+            SERVER_Update(URL_Server, DB_Message);
+          }
         }
       }
       else if(param == "_id"){
@@ -111,9 +134,9 @@ bool SERVER_Update(String UrlUpdate, String message){
 
   if(httpResponseCode > 0){
     #ifdef DEBUG
-      String response = http.getString();   
-      Serial.print(httpResponseCode);
-      Serial.println(response);          
+//      String response = http.getString();   
+//      Serial.print(httpResponseCode);
+//      Serial.println(response);          
     #endif
     http.end();
     if(httpResponseCode == 404)return false;

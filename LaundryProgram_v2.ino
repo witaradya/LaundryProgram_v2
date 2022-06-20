@@ -2,8 +2,8 @@
  * 11 MEI 2022
  * Witaradya Adhi Dharma
  */
-
-#define DEBUG
+ 
+//#define DEBUG
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -18,24 +18,24 @@
  * Choose one to activate 1 device that will you use
  * MACHINE_ID must equal with MACHINE_SIGN
  */
-#define MACHINE_ID          "628f08431bd192bb4d866987" //"1" // WASHER TITAN no.1
+//#define MACHINE_ID          "628f08431bd192bb4d866987" //"1" // WASHER TITAN no.1
 //#define MACHINE_ID          "628f084c1bd192bb4d866988" //"2" // DRYER TITAN no.2
 //#define MACHINE_ID          "628f08551bd192bb4d866989" //"3" // WASHER no.3
-//#define MACHINE_ID          "628f085f1bd192bb4d86698a" //"4" // DRYER no.4
+#define MACHINE_ID          "628f085f1bd192bb4d86698a" //"4" // DRYER no.4
 //#define MACHINE_ID          "628f08681bd192bb4d86698b" //"5" // WASHER no.5
 //#define MACHINE_ID          "628f08791bd192bb4d86698c" //"6" // DRYER no.6
 
-#define MACHINE_SIGN    "1" // WASHER TITAN no.1"
+//#define MACHINE_SIGN    "1" // WASHER TITAN no.1"
 //#define MACHINE_SIGN    "2" // DRYER TITAN no.2"
 //#define MACHINE_SIGN    "3" // WASHER no.3"
-//#define MACHINE_SIGN    "4" // DRYER  no.4"
+#define MACHINE_SIGN    "4" // DRYER  no.4"
 //#define MACHINE_SIGN    "5" // WASHER no.5"
 //#define MACHINE_SIGN    "6" // DRYER no.6"
 
 #define STORE "6267c113f0abea5167c243b3"   //Klaseman Laundry
 //#define STORE "2"   //Solo Laundry
 
-#define URL                 "https://api.kontenbase.com/query/api/v1/79be38c0-31f9-4540-bd11-17752498dab5/"
+#define URL                 "https://api.kontenbase.com/query/api/v1/d11e834d-5663-4415-9bee-cfb371e77a2e/"
 
 #define GET_MACHINE         "Machine/"
 #define GET_ID              "Transaction?transaction_finish=false&is_packet="
@@ -106,8 +106,12 @@ void EEPROM_Init() {
     Serial.println("Failed to init EEPROM");
   }
 
-  EEPROM.write(BYPASS_ADDR, 0);
-  EEPROM.commit();
+//  EEPROM.write(STS_ADDR, 0);
+//  EEPROM.write(MINUTE_ADDR, 0);
+//  EEPROM.write(MICOM_STAGE, 0);
+//  EEPROM.write(PACKET_ADDR, 0);
+//  EEPROM.write(BYPASS_ADDR, 0);
+//  EEPROM.commit();
   
   machineSts = EEPROM.read(STS_ADDR);
   TON_MACHINE = EEPROM.read(MINUTE_ADDR);
@@ -117,7 +121,7 @@ void EEPROM_Init() {
   
   Serial.println("EEPROM_Init : ");
   Serial.print("Status Mesin : ");Serial.println(machineSts);
-  Serial.print("Menit : ");Serial.println(menit);
+  Serial.print("Menit : ");Serial.println(TON_MACHINE);
   Serial.print("Control Stage : ");Serial.println(ctrlStage);
   Serial.print("Is Packet : ");Serial.println(packet);
   Serial.print("Mount By Pass : ");Serial.println(mountByPass);
@@ -132,6 +136,10 @@ void EEPROM_Init() {
       setMachineON = true;
       machineOn = false;
       //IsTransaction = true;
+
+      URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+      DB_Message = "{\"debug_machine\":2}";
+      SERVER_Update(URL_Server, DB_Message);
     }
     else if(ctrlStage == 2){
       Transaction_ID = "null";
@@ -153,15 +161,20 @@ void EEPROM_Init() {
 */
 void MACHINE_on() {
   if (machineOn) {
-    #ifdef DEBUG
-      Serial.println("MACHINE_on : Mesin Dinyalakan");
-    #endif
     for(uint8_t aa = 0; aa < 3; aa++){
       digitalWrite(PIN_MACHINE, HIGH);
       delay(50);
       digitalWrite(PIN_MACHINE, LOW);
       delay(2000);
     }
+    #ifdef DEBUG
+      Serial.println("MACHINE_on : Mesin Dinyalakan");
+    #endif
+
+    // Update stage machine to 2 = Machine working
+    URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+    DB_Message = "{\"debug_machine\":2}";
+    SERVER_Update(URL_Server, DB_Message);
 
     machineOn = false;
   }
@@ -193,10 +206,6 @@ void Button_ByPass() {
         #ifdef DEBUG
           Serial.println("KillTransaction(3-5) : tidak ada transaksi");
         #endif
-
-//        URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
-//        DB_Message = "{\"machine_status\":false,\"price_time\":0}";
-//        SERVER_Update(URL_Server, DB_Message);
         
         paksaNyala = false;
         EEPROM.write(STS_ADDR, 0);
@@ -208,7 +217,7 @@ void Button_ByPass() {
         ESP.restart();
       }   
     }
-    if(((rilisTime - pressTime) > 9000) && ((rilisTime - pressTime) < 12000)) {
+    if(((rilisTime - pressTime) > 12000) && ((rilisTime - pressTime) < 14000)) {
       #ifdef DEBUG
         Serial.println("KillTransaction(9-12) : Paksa ON machine!!!");
       #endif
@@ -229,7 +238,7 @@ void setup() {
   digitalWrite(PIN_MACHINE, LOW);
   delay(100);
 
-  //pinMode(2, OUTPUT);
+//  pinMode(2, OUTPUT);
   pinMode(LED_WIFI, OUTPUT);
 
   pinMode(RESET_BTN, INPUT);
@@ -320,19 +329,26 @@ void loop() {
   // and then trigger the machine if status machine change from 0 to 1
   else {
     // Get update machine_status and is_packet from server if isTransaction false(no transaction running)
-    if(!IsTransaction){
+    if(!IsTransaction && !setMachineON){
       if((millis() - timeServerUpdate) >= 3000){
         URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
         SERVER_getJsonResponse(URL_Server, "machine_status"); 
+
+        // Update stage machine to 1 = Standby
+        URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
+        DB_Message = "{\"debug_machine\":1}";
+        SERVER_Update(URL_Server, DB_Message);
+        
         timeServerUpdate = millis();
       }
     }
     
     // Update status Washer/Dryer to server after Washer/Dryer finished
-    if (updateServer) {   
-      //Change machine_status to false if timer reach value
+    if (updateServer) {  
+//      digitalWrite(2, LOW); 
+      //Change machine_status to false if timer reach value and change stage machine to 3 = Finish transaction
       URL_Server = (String) URL + (String) GET_MACHINE + (String) MACHINE_ID;
-      DB_Message = "{\"machine_status\":false,\"price_time\":0,\"is_packet\":false}";
+      DB_Message = "{\"debug_machine\":3,\"machine_status\":false,\"price_time\":0,\"is_packet\":false}";
       if (SERVER_Update(URL_Server, DB_Message)) {
         #ifdef DEBUG
           Serial.println("Success Update machine_status:false on Server");
@@ -355,7 +371,7 @@ void loop() {
           
           URL_Server = (String) URL + (String) UPDATE_TRANSACTION + (String) Transaction_ID;
           if(killTransaction){
-            DB_Message = "{\"step_one\":true,\"transaction_finish\":true}";
+            DB_Message = "{\"step_one\":false,\"transaction_finish\":true}";
             if(SERVER_Update(URL_Server, DB_Message)){
               menit = 0;
               detik = 0;
